@@ -16,7 +16,8 @@ const
   crypto = require('crypto'),
   express = require('express'),
   https = require('https'),  
-  request = require('request');
+  request = require('request'),
+  myMessages = require('./myMessages.js');
 
 var app = express();
 app.set('port', process.env.PORT || 5000);
@@ -361,9 +362,12 @@ function receivedPostback(event) {
   console.log("Received postback for user %d and page %d with payload '%s' " + 
     "at %d", senderID, recipientID, payload, timeOfPostback);
 
-  // When a postback is called, we'll send a message back to the sender to 
-  // let them know it was successful
-  sendTextMessage(senderID, "Postback called");
+  const message = myMessages.getMessage(payload);
+  sendCustomButtonMessage(senderID, message);
+
+  // // When a postback is called, we'll send a message back to the sender to 
+  // // let them know it was successful
+  // sendTextMessage(senderID, "Postback called");
 }
 
 /*
@@ -565,6 +569,18 @@ function sendButtonMessage(recipientId) {
     }
   };  
 
+  callSendAPI(messageData);
+}
+
+function sendCustomButtonMessage(recipientId, message) {
+  var messageData = {
+    recipient: {
+      id: recipientId
+    },
+    message: message
+  };  
+
+  console.log(messageData);
   callSendAPI(messageData);
 }
 
@@ -826,6 +842,8 @@ function callSendAPI(messageData) {
     }
   });  
 }
+
+myMessages.setMenu(myMessages.menu_config);
 
 // Start server
 // Webhooks must be available via SSL with a certificate signed by a valid 
