@@ -10,20 +10,73 @@
 /* jshint node: true, devel: true */
 'use strict';
 
-const 
+const
   bodyParser = require('body-parser'),
   config = require('config'),
   crypto = require('crypto'),
   express = require('express'),
-  https = require('https'),  
+  https = require('https'),
   request = require('request');
-  
+
 const PAGE_ACCESS_TOKEN = (process.env.MESSENGER_PAGE_ACCESS_TOKEN) ?
   (process.env.MESSENGER_PAGE_ACCESS_TOKEN) :
   config.get('pageAccessToken');
 
+// valores iniciais da nossa enquete
+const resultados_enquete = {
+  'enquete.lista_telefones': 0,
+  'enquete.lista_websites': 0,
+  'enquete.enquete': 0,
+};
+
+const votos_usuarios = {};
+
+// funcao para computar votos e responder o usuario
+function updateResults(event) {
+  const payload = event.postback.payload;
+  const senderID = event.sender.id;
+  const usuarioJaVotou = votos_usuarios[senderID] ? true : false;
+
+  // desconta o voto antigo caso ja tenha votado
+  if(usuarioJaVotou) {
+    opcao = votos_usuarios[senderID];
+    resultados_enquete[payload] = resultados_enquete[payload] - 1;
+  }
+
+  // registra o novo voto
+  votos_usuarios[senderID] = payload;
+
+  // incrementa o total de votos
+  resultados_enquete[payload] = resultados_enquete[payload] + 1;
+
+  console.log('Totais atualizados', resultados_enquete);
+
+  if (usuarioJaVotou) {
+    return {
+      text: 'Você já tinha votado então trocamos a sua opção.',
+    };
+  }
+
+  return {
+    text: 'Voto registrado',
+  };
+}
+
+// funcao para calcular os totais de votos
+function getResults() {
+  console.log('Resultado enquete', resultados_enquete);
+  const resultados_txt =
+    `* Lista Telefones: ${resultados_enquete['enquete.lista_telefones']} votos\n` +
+    `* Lista Sites: ${resultados_enquete['enquete.lista_websites']} votos\n` +
+    `* Lista Enquete: ${resultados_enquete['enquete.enquete']} votos\n`;
+
+  return {
+    text: 'Até agora, temos os seguintes resultados\n' + resultados_txt,
+  };
+}
+
 module.exports = {
-  
+
   // opcoes do menu que o usuario tem disponivel o tempo todo
   menu_config: {
     "setting_type" : "call_to_actions",
@@ -41,12 +94,17 @@ module.exports = {
       },
       {
         "type":"postback",
-        "title":"Enquete",
-        "payload":"enquete"
+        "title":"Votar",
+        "payload":"votar"
+      },
+      {
+        "type":"postback",
+        "title":"Ver Resultado",
+        "payload":"resultado"
       },
     ]
   },
-  
+
   all_messages: {
     'telefones': {
       attachment: {
@@ -69,7 +127,7 @@ module.exports = {
         }
       }
     },
-    
+
     'teste': {
       "attachment":{
         "type":"template",
@@ -93,19 +151,19 @@ module.exports = {
                   "type":"postback",
                   "title":"Start Chatting",
                   "payload":"DEVELOPER_DEFINED_PAYLOAD"
-                }              
-              ]      
+                }
+              ]
             }
           ]
         }
       }
     },
-    
-    
+
+
     'sites': {},
-    
-    
-    'enquete': {
+
+
+    'votar': {
       attachment: {
         type: "template",
         payload: {
@@ -132,53 +190,45 @@ module.exports = {
       }
     },
 
-    // Resultados da enquete. Sao calculados pela funcao updateResultsAndReturn
-    'enquete.lista_telefones': updateResultsAndReturn('enquete.lista_telefones'),
-    'enquete.lista_websites': updateResultsAndReturn('enquete.lista_websites'),
-    'enquete.enquete': updateResultsAndReturn('enquete.enquete'),
+    // Resultados da enquete. Sao calculados pela funcao updateResults
+    'enquete.lista_telefones': updateResults,
+    'enquete.lista_websites': updateResults,
+    'enquete.enquete': updateResults,
+
+    'resultado': getResults,
   },
 
-  resultados_enquete: {
-    'enquete.lista_telefones': 0,
-    'enquete.lista_websites': 0,
-    'enquete.enquete': 0,
-  }
-
-  updateResultsAndReturn: function(payload) {
-    this.resultados_enquete[payload] += 1;
-    resultados_txt = 
-      `Lista Telefones: ${resultados_enquete['enquete.lista_telefones']} votos\n` +
-      `Lista Sites: ${resultados_enquete['enquete.lista_websites']} votos\n` +
-      `Lista Enquete: ${resultados_enquete['enquete.enquete']} votos\n`;
-
-    return {
-      text: 'Até agora, os resultados da enquete são:\n' + resultados_txt,
-    };
-  },
-
-
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   // Nao mexer daqui para baixo
-    
-  getMessage: function(payload) {
-    return this.all_messages[payload]
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  getMessage: function(event) {
+    const payload = event.postback.payload;
+    ret = this.all_messages[payload];
+
+    if(ret instanceof Function) {
+      // getResults nao recebe parametro. ele e ignorado
+      return ret(event)
+    }
+    return ret;
   },
-  
+
   setMenu: function(config) {
     request({
       uri: 'https://graph.facebook.com/v2.6/me/thread_settings',
       qs: { access_token: PAGE_ACCESS_TOKEN },
       method: 'POST',
       json: config
-  
+
     }, function (error, response, body) {
       if (!error && response.statusCode == 200) {
         console.log("Successfully set up thread menu", body)
       } else {
         console.error("Error setting up thread menu", body);
       }
-    }); 
+    });
   },
-  
+
   deleteMenu: function() {
     request({
       uri: 'https://graph.facebook.com/v2.6/me/thread_settings',
@@ -188,14 +238,14 @@ module.exports = {
         "setting_type":"call_to_actions",
         "thread_state":"existing_thread"
       }
-  
+
     }, function (error, response, body) {
       if (!error && response.statusCode == 200) {
         console.log("Successfully removed thread menu", body)
       } else {
         console.error("Error removing thread menu", body);
       }
-    }); 
+    });
   }
 
 };
