@@ -24,12 +24,13 @@ const PAGE_ACCESS_TOKEN = (process.env.MESSENGER_PAGE_ACCESS_TOKEN) ?
 
 // valores iniciais da nossa enquete
 const resultados_enquete = {
-  'enquete.lista_telefones': 0,
-  'enquete.lista_websites': 0,
+  'enquete.listas': 0,
+  'enquete.localizacao': 0,
   'enquete.enquete': 0,
 };
 
 const votos_usuarios = {};
+const permitir_votos_duplicados = true;
 
 // funcao para computar votos e responder o usuario
 function updateResults(event) {
@@ -38,9 +39,9 @@ function updateResults(event) {
   const usuarioJaVotou = votos_usuarios[senderID] ? true : false;
 
   // desconta o voto antigo caso ja tenha votado
-  if(usuarioJaVotou) {
-    opcao = votos_usuarios[senderID];
-    resultados_enquete[payload] = resultados_enquete[payload] - 1;
+  if(!permitir_votos_duplicados && usuarioJaVotou) {
+    const opcao = votos_usuarios[senderID];
+    resultados_enquete[opcao] = resultados_enquete[opcao] - 1;
   }
 
   // registra o novo voto
@@ -49,29 +50,34 @@ function updateResults(event) {
   // incrementa o total de votos
   resultados_enquete[payload] = resultados_enquete[payload] + 1;
 
-  console.log('Totais atualizados', resultados_enquete);
+  console.log('Voto registrado. Totais atualizados\n', resultados_enquete);
 
-  if (usuarioJaVotou) {
+  if (!permitir_votos_duplicados && usuarioJaVotou) {
     return {
-      text: 'Você já tinha votado então trocamos a sua opção.',
+      text: 'Você já tinha votado então trocamos a sua opção.' + getResultsStr(),
     };
   }
 
   return {
-    text: 'Voto registrado',
+    text: 'Voto registrado\n' + getResultsStr(),
   };
 }
 
-// funcao para calcular os totais de votos
+function getResultsStr() {
+  const resultados_txt =
+    `* Listas: ${resultados_enquete['enquete.listas']} votos\n` +
+    `* Compartilhar Localização: ${resultados_enquete['enquete.localizacao']} votos\n` +
+    `* Enquete: ${resultados_enquete['enquete.enquete']} votos\n`;
+
+  return 'Até agora, temos os seguintes resultados\n' + resultados_txt;
+}
+
+// funcao para retornar mensagem com os totais de votos
 function getResults() {
   console.log('Resultado enquete', resultados_enquete);
-  const resultados_txt =
-    `* Lista Telefones: ${resultados_enquete['enquete.lista_telefones']} votos\n` +
-    `* Lista Sites: ${resultados_enquete['enquete.lista_websites']} votos\n` +
-    `* Lista Enquete: ${resultados_enquete['enquete.enquete']} votos\n`;
 
   return {
-    text: 'Até agora, temos os seguintes resultados\n' + resultados_txt,
+    text: getResultsStr(),
   };
 }
 
@@ -89,17 +95,22 @@ module.exports = {
       },
       {
         "type":"postback",
-        "title":"teste",
-        "payload":"teste"
+        "title":"Sites",
+        "payload":"sites"
       },
       {
         "type":"postback",
-        "title":"Votar",
+        "title":"Enviar sua Localização",
+        "payload":"localizacao"
+      },
+      {
+        "type":"postback",
+        "title":"Votar Enquete",
         "payload":"votar"
       },
       {
         "type":"postback",
-        "title":"Ver Resultado",
+        "title":"Ver Resultado Enquete",
         "payload":"resultado"
       },
     ]
@@ -115,52 +126,79 @@ module.exports = {
           buttons:[
             {
               type: "phone_number",
-              title: "Pizzaria",
-              payload: "+552131312929"
-            },
-            {
-              type: "phone_number",
               title: "CUFA",
-              payload: "+552131312828"
+              payload: "+552124588035"
             },
           ]
         }
       }
     },
 
-    'teste': {
+    'sites': {
       "attachment":{
         "type":"template",
         "payload":{
           "template_type":"generic",
           "elements":[
              {
-              "title":"Welcome to Peter\'s Hats",
-              "image_url":"https://petersfancybrownhats.com/company_image.png",
-              "subtitle":"We\'ve got the right hat for everyone.",
-              "default_action": {
-                "type": "web_url",
-                "url": "https://peterssendreceiveapp.ngrok.io/view?item=103",
+                "title":"CUFA",
+                "image_url":"https://www.cufa.org.br/assets/img/logo.png",
+                "subtitle":"Site da CUFA",
+                "default_action": {
+                  "type": "web_url",
+                  "url": "https://www.cufa.org.br/",
+                },
+                "buttons": [
+                  {
+                    "type":"web_url",
+                    "url":"https://www.cufa.org.br/",
+                    "title":"Visitar Website"
+                  },
+                ],
               },
-              "buttons":[
-                {
-                  "type":"web_url",
-                  "url":"https://petersfancybrownhats.com",
-                  "title":"View Website"
-                },{
-                  "type":"postback",
-                  "title":"Start Chatting",
-                  "payload":"DEVELOPER_DEFINED_PAYLOAD"
-                }
-              ]
-            }
+              {
+                "title":"Facebook",
+                "subtitle":"Facebook",
+                "default_action": {
+                  "type": "web_url",
+                  "url": "https://www.facebook.com/",
+                },
+                "buttons": [
+                  {
+                    "type":"web_url",
+                    "url":"https://www.facebook.com/",
+                    "title":"Visitar Website"
+                  },
+                ],
+              },
+              {
+                "title":"Platforma do Messenger",
+                "subtitle":"Guia Messenger Bots",
+                "default_action": {
+                  "type": "web_url",
+                  "url": "https://developers.facebook.com/docs/messenger-platform",
+                },
+                "buttons": [
+                  {
+                    "type":"web_url",
+                    "url":"https://developers.facebook.com/docs/messenger-platform",
+                    "title":"Visitar Website"
+                  },
+                ],
+              },
           ]
         }
       }
     },
 
-
-    'sites': {},
+    'localizacao': {
+      "text":"Compartilhe sua localização",
+      "quick_replies":[
+        {
+          "content_type":"location",
+        }
+      ]
+    },
 
 
     'votar': {
@@ -172,13 +210,13 @@ module.exports = {
           buttons:[
             {
               type: "postback",
-              title: "Lista de Telefones",
-              payload: "enquete.lista_telefones",
+              title: "Listas",
+              payload: "enquete.listas",
             },
             {
               type: "postback",
-              title: "Lista de Websites",
-              payload: "enquete.lista_telefones",
+              title: "Localização",
+              payload: "enquete.localizacao",
             },
             {
               type: "postback",
@@ -190,25 +228,21 @@ module.exports = {
       }
     },
 
-    // Resultados da enquete. Sao calculados pela funcao updateResults
-    'enquete.lista_telefones': updateResults,
-    'enquete.lista_websites': updateResults,
+    // Resultados da enquete. todas as opcoes devem ser adicionadas aqui
+    'enquete.listas': updateResults,
+    'enquete.localizacao': updateResults,
     'enquete.enquete': updateResults,
 
     'resultado': getResults,
   },
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  // Nao mexer daqui para baixo
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
   getMessage: function(event) {
     const payload = event.postback.payload;
-    ret = this.all_messages[payload];
+    const ret = this.all_messages[payload];
 
     if(ret instanceof Function) {
       // getResults nao recebe parametro. ele e ignorado
-      return ret(event)
+      return ret(event);
     }
     return ret;
   },
